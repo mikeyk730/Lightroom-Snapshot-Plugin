@@ -5,6 +5,10 @@ local LrFunctionContext = import 'LrFunctionContext'
 local LrProgressScope = import 'LrProgressScope'
 local LrTasks = import 'LrTasks'
 local LrView = import 'LrView'
+local LrLogger = import 'LrLogger'
+
+logger = LrLogger('Lightroom-Snapshot-Plugin')
+logger:enable("logfile")
 
 
 PhotoProcessor = {}
@@ -40,22 +44,21 @@ end
 
 --Create a develop snapshot for the supplied photo.
 function PhotoProcessor.createSnapshot(photo, name)
-   logger:trace("Creating snapshot", name, photo.path)
-   local catalog = LrApplication.activeCatalog()
-   catalog:withWriteAccessDo("Create Snapshot", function(context) 
-         photo:createDevelopSnapshot(name, true)
-   end, { timeout=60 })
+   logger:trace("Create Snapshot", name, photo.path)
+   if photo:checkPhotoAvailability() then         
+      local catalog = LrApplication.activeCatalog()
+      catalog:withWriteAccessDo("Create Snapshot", function(context) 
+          photo:createDevelopSnapshot(name, true)
+      end, { timeout=60 })
+   else
+      logger:warn("Photo not available: " .. photo.path)
+   end
 end
 
 
 function PhotoProcessor.startSnapshotTask(photo, name)
    LrTasks.startAsyncTask(function(context)
-         local available = photo:checkPhotoAvailability()
-         if available then         
-            PhotoProcessor.createSnapshot(photo, name)
-         else
-            logger:warn("Photo not available: " .. photo.path)
-         end
+         PhotoProcessor.createSnapshot(photo, name)
    end)
 end
 
@@ -81,7 +84,7 @@ function PhotoProcessor.processPhotos()
    logger:trace("processPhotos", totalPhotos)
 
    local name = PhotoProcessor.promptForSnapshotName()
-   if name == nil then:
+   if name == nil then
       logger:trace("No name provided")
       return
    end
